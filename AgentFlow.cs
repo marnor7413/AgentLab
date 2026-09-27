@@ -55,6 +55,12 @@ internal sealed class AgentFlow
         string? currentExecutor = null;
         List<ChatMessage>? finalHistory = null;
 
+        long totalInputTokenCount = 0;
+        long totalCchedInputTokenCount = 0;
+        long totalOutputTokenCount = 0;
+        long totalReasoningTokenCount = 0;
+        ConsoleColor defaultColor = Console.ForegroundColor;
+
         await foreach (WorkflowEvent evt in run.WatchStreamAsync())
         {
             if (evt is AgentResponseUpdateEvent update)
@@ -71,6 +77,22 @@ internal sealed class AgentFlow
                 {
                     Console.Write(message.Text);
                 }
+                var response = update.AsResponse();
+                if(response is not null && response.Usage is UsageDetails usage)
+                {
+                    Console.WriteLine();
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("Usage:");
+                    Console.WriteLine($"- Input Tokens: {usage.InputTokenCount}");
+                    Console.WriteLine($"- Cached Tokens: {usage.CachedInputTokenCount ?? 0}");
+                    Console.WriteLine($"- Output Tokens: {usage.OutputTokenCount} " + $"({usage.ReasoningTokenCount ?? 0} being reasoning Tokens)");
+                    Console.ForegroundColor = defaultColor;
+
+                    totalInputTokenCount += usage.InputTokenCount ?? 0;
+                    totalCchedInputTokenCount += usage.CachedInputTokenCount ?? 0;
+                    totalOutputTokenCount += usage.OutputTokenCount ?? 0;
+                    totalReasoningTokenCount += usage.ReasoningTokenCount ?? 0;
+                }
             }
             else if (evt is WorkflowOutputEvent output)
             {
@@ -86,6 +108,14 @@ internal sealed class AgentFlow
         Console.WriteLine(approved
             ? "## END OF CHAT (approved by QA)"
             : $"## END OF CHAT (NOT approved, stopped after max {MaximumIterations} iterations or no output)");
+        Console.WriteLine();
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.WriteLine("Usage:");
+        Console.WriteLine($"- TOTAL input Tokens: {totalInputTokenCount}");
+        Console.WriteLine($"- TOTAL cached Tokens: {totalCchedInputTokenCount}");
+        Console.WriteLine($"- TOTAL output Tokens: {totalOutputTokenCount} " + $"({totalReasoningTokenCount} being reasoning Tokens)");
+        Console.ForegroundColor = defaultColor;
+
     }
 
     private static bool IsNewSpeaker(string? currentExecutor, AgentResponseUpdateEvent update)
